@@ -6,14 +6,20 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -26,13 +32,17 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.tasks.Task;
 import com.kakao.sdk.user.UserApiClient;
 
-public class MainActivity extends AppCompatActivity {
+import net.daum.mf.map.api.MapPoint;
+import net.daum.mf.map.api.MapPolyline;
+import net.daum.mf.map.api.MapView;
+
+public class MainActivity extends AppCompatActivity implements MapView.CurrentLocationEventListener, MapView.MapViewEventListener {
 
     ConstraintLayout layoutLogin, layoutMain;
 
-    TextView btnGoogleLogin;
+    TextView btnGoogleLogin, txtStep;
     ImageView btnKakaoLogin;
-    Button btnLogout;
+    Button btnLogout, btnStart, btnStop;
 
     private ActivityResultLauncher<Intent> resultLauncher;
 
@@ -41,12 +51,53 @@ public class MainActivity extends AppCompatActivity {
     boolean googleLoginFlag = false;
     boolean kakaoLoginFlag = false;
 
+    // KakaoMap=================================================
+    private MapView mapView;
+    private ViewGroup mapViewContainer;
+
+    MapPolyline mapPolyline;
+
+    private BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if("com.soulstring94.stepcounter.STEP_COUNT".equals(intent.getAction())) {
+                int stepCount = intent.getIntExtra("count", 0);
+                txtStep.setText(String.valueOf(stepCount));
+            }
+        }
+    };
+
+    private BroadcastReceiver gpsReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if("com.soulstring94.stepcounter.GPS_INFO".equals(intent.getAction())) {
+                String getLatLng = intent.getStringExtra("latlng");
+                String[] latlng = getLatLng.split(",");
+                double latitude = Double.parseDouble(latlng[0]);
+                double longitude = Double.parseDouble(latlng[1]);
+
+                mapPolyline.addPoint(MapPoint.mapPointWithGeoCoord(latitude, longitude));
+
+                mapView.addPolyline(mapPolyline);
+            }
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        mapPolyline = new MapPolyline();
+        mapPolyline.setLineColor(Color.argb(255, 0, 153, 255));
+
         accessPermission();
+
+        mapView = new MapView(this);
+        mapViewContainer = (ViewGroup) findViewById(R.id.mapView);
+        mapViewContainer.addView(mapView);
+        mapView.setMapViewEventListener(this);
+        mapView.setCurrentLocationTrackingMode(MapView.CurrentLocationTrackingMode.TrackingModeOnWithoutHeading);
 
         initMain();
 
@@ -66,6 +117,16 @@ public class MainActivity extends AppCompatActivity {
 
         googleSignInClient = GoogleSignIn.getClient(MainActivity.this, gso);
 
+        IntentFilter filter = new IntentFilter("com.soulstring94.stepcounter.STEP_COUNT");
+        LocalBroadcastManager.getInstance(this).registerReceiver(broadcastReceiver, filter);
+
+        Intent serviceIntent = new Intent(this, StepCounterService.class);
+
+        IntentFilter filter2 = new IntentFilter("com.soulstring94.stepcounter.GPS_INFO");
+        LocalBroadcastManager.getInstance(this).registerReceiver(gpsReceiver, filter2);
+
+        Intent serviceIntent2 = new Intent(this, StepCounterService.class);
+
         View.OnClickListener clickListener = view -> {
             switch (view.getId()) {
                 case R.id.btnGoogleLogin:
@@ -77,12 +138,25 @@ public class MainActivity extends AppCompatActivity {
                 case R.id.btnLogout:
                     logout();
                     break;
+                case R.id.btnStart:
+                    startService(serviceIntent);
+                    startService(serviceIntent2);
+                    break;
+                case R.id.btnStop:
+                    stopService(serviceIntent);
+                    stopService(serviceIntent2);
+                    mapView.removeAllPolylines();
+                    txtStep.setText("0");
+                    break;
             }
         };
 
         btnGoogleLogin.setOnClickListener(clickListener);
         btnKakaoLogin.setOnClickListener(clickListener);
         btnLogout.setOnClickListener(clickListener);
+
+        btnStart.setOnClickListener(clickListener);
+        btnStop.setOnClickListener(clickListener);
     }
 
     private void initMain() {
@@ -92,6 +166,10 @@ public class MainActivity extends AppCompatActivity {
         btnGoogleLogin = findViewById(R.id.btnGoogleLogin);
         btnKakaoLogin = findViewById(R.id.btnKakaoLogin);
         btnLogout = findViewById(R.id.btnLogout);
+        btnStart = findViewById(R.id.btnStart);
+        btnStop = findViewById(R.id.btnStop);
+
+        txtStep = findViewById(R.id.txtStep);
     }
 
     private void googleLogin() {
@@ -226,4 +304,76 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver);
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(gpsReceiver);
+    }
+
+    @Override
+    public void onCurrentLocationUpdate(MapView mapView, MapPoint mapPoint, float v) {
+
+    }
+
+    @Override
+    public void onCurrentLocationDeviceHeadingUpdate(MapView mapView, float v) {
+
+    }
+
+    @Override
+    public void onCurrentLocationUpdateFailed(MapView mapView) {
+
+    }
+
+    @Override
+    public void onCurrentLocationUpdateCancelled(MapView mapView) {
+
+    }
+
+    @Override
+    public void onMapViewInitialized(MapView mapView) {
+
+    }
+
+    @Override
+    public void onMapViewCenterPointMoved(MapView mapView, MapPoint mapPoint) {
+
+    }
+
+    @Override
+    public void onMapViewZoomLevelChanged(MapView mapView, int i) {
+
+    }
+
+    @Override
+    public void onMapViewSingleTapped(MapView mapView, MapPoint mapPoint) {
+
+    }
+
+    @Override
+    public void onMapViewDoubleTapped(MapView mapView, MapPoint mapPoint) {
+
+    }
+
+    @Override
+    public void onMapViewLongPressed(MapView mapView, MapPoint mapPoint) {
+
+    }
+
+    @Override
+    public void onMapViewDragStarted(MapView mapView, MapPoint mapPoint) {
+
+    }
+
+    @Override
+    public void onMapViewDragEnded(MapView mapView, MapPoint mapPoint) {
+
+    }
+
+    @Override
+    public void onMapViewMoveFinished(MapView mapView, MapPoint mapPoint) {
+
+    }
 }
