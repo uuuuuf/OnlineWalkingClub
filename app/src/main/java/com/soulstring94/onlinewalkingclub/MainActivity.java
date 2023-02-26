@@ -1,7 +1,5 @@
 package com.soulstring94.onlinewalkingclub;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
@@ -12,7 +10,6 @@ import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
-import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -21,12 +18,10 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -34,7 +29,6 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
-import com.google.android.gms.tasks.Task;
 import com.google.android.material.navigation.NavigationView;
 import com.kakao.sdk.user.UserApiClient;
 
@@ -44,18 +38,10 @@ import net.daum.mf.map.api.MapView;
 
 public class MainActivity extends AppCompatActivity implements MapView.CurrentLocationEventListener, MapView.MapViewEventListener {
 
-    ConstraintLayout layoutLogin, layoutMain;
+    ConstraintLayout layoutMain;
 
-    TextView btnGoogleLogin, txtStep;
-    ImageView btnKakaoLogin;
+    TextView txtStep;
     Button btnStart, btnStop;
-
-    private ActivityResultLauncher<Intent> resultLauncher;
-
-    GoogleSignInClient googleSignInClient;
-
-    boolean googleLoginFlag = false;
-    boolean kakaoLoginFlag = false;
 
     // KakaoMap=================================================
     private MapView mapView;
@@ -67,6 +53,11 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
     Toolbar toolbar;
     DrawerLayout drawerLayout;
     NavigationView navigationView;
+
+    boolean googleLoginFlag;
+    boolean kakaoLoginFlag;
+
+    GoogleSignInClient googleSignInClient;
 
     private BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -103,20 +94,6 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
 
         accessPermission();
 
-        navigationView.setNavigationItemSelectedListener(item -> {
-            int id = item.getItemId();
-            switch (id) {
-                case R.id.item_info:
-                    Toast.makeText(getApplicationContext(), "내 정보", Toast.LENGTH_SHORT).show();
-                    break;
-                case R.id.item_notice:
-                    Toast.makeText(getApplicationContext(), "공지사항", Toast.LENGTH_SHORT).show();
-                    break;
-            }
-
-            return true;
-        });
-
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_baseline_dehaze_24);
@@ -124,6 +101,24 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
 
         ActionBar actionBar = getSupportActionBar();
         actionBar.setDisplayShowTitleEnabled(false);
+
+        navigationView.setNavigationItemSelectedListener(item -> {
+            int id = item.getItemId();
+            switch (id) {
+                case R.id.item_info:
+                    Intent intent = new Intent(MainActivity.this, MyInfoActivity.class);
+                    startActivity(intent);
+                    break;
+                case R.id.item_notice:
+                    Toast.makeText(getApplicationContext(), "공지사항", Toast.LENGTH_SHORT).show();
+                    break;
+                case R.id.item_logout:
+                    logout();
+                    break;
+            }
+
+            return true;
+        });
 
         mapPolyline = new MapPolyline();
         mapPolyline.setLineColor(Color.argb(255, 0, 153, 255));
@@ -133,22 +128,6 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
         mapViewContainer.addView(mapView);
         mapView.setMapViewEventListener(this);
         mapView.setCurrentLocationTrackingMode(MapView.CurrentLocationTrackingMode.TrackingModeOnWithoutHeading);
-
-        resultLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-            if(result.getResultCode() == Activity.RESULT_OK) {
-                Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(result.getData());
-                handleSignResult(task);
-            } else {
-                Log.e("failed", String.valueOf(result.getResultCode()));
-            }
-        });
-
-        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestEmail()
-                .requestProfile()
-                .build();
-
-        googleSignInClient = GoogleSignIn.getClient(MainActivity.this, gso);
 
         IntentFilter filter = new IntentFilter("com.soulstring94.stepcounter.STEP_COUNT");
         LocalBroadcastManager.getInstance(this).registerReceiver(broadcastReceiver, filter);
@@ -162,12 +141,6 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
 
         View.OnClickListener clickListener = view -> {
             switch (view.getId()) {
-                case R.id.btnGoogleLogin:
-                    googleLogin();
-                    break;
-                case R.id.btnKakaoLogin:
-                    kakaoLogin();
-                    break;
                 case R.id.btnStart:
                     startService(serviceIntent);
                     startService(serviceIntent2);
@@ -181,21 +154,32 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
             }
         };
 
-        btnGoogleLogin.setOnClickListener(clickListener);
-        btnKakaoLogin.setOnClickListener(clickListener);
-
         btnStart.setOnClickListener(clickListener);
         btnStop.setOnClickListener(clickListener);
     }
 
     private void initMain() {
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .requestProfile()
+                .build();
+
+        googleSignInClient = GoogleSignIn.getClient(MainActivity.this, gso);
+
+        Intent intent = getIntent();
+        googleLoginFlag = intent.getBooleanExtra("googleLoginFlag", false);
+        kakaoLoginFlag = intent.getBooleanExtra("kakaoLoginFlag", false);
+
+        if(googleLoginFlag) {
+            Toast.makeText(MainActivity.this, "구글 로그인", Toast.LENGTH_SHORT).show();
+        } else if(kakaoLoginFlag) {
+            Toast.makeText(MainActivity.this, "카카오 로그인", Toast.LENGTH_SHORT).show();
+        }
+
         toolbar = (Toolbar)findViewById(R.id.toolbar);
 
-        layoutLogin = findViewById(R.id.layoutLogin);
         layoutMain = findViewById(R.id.layoutMain);
 
-        btnGoogleLogin = findViewById(R.id.btnGoogleLogin);
-        btnKakaoLogin = findViewById(R.id.btnKakaoLogin);
         btnStart = findViewById(R.id.btnStart);
         btnStop = findViewById(R.id.btnStop);
 
@@ -203,70 +187,6 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
 
         drawerLayout = (DrawerLayout) findViewById(R.id.drawerLayout);
         navigationView = (NavigationView) findViewById(R.id.navigationView);
-
-        layoutLogin.setVisibility(View.VISIBLE);
-        drawerLayout.setVisibility(View.GONE);
-    }
-
-    private void googleLogin() {
-        Intent googleSignInIntent = googleSignInClient.getSignInIntent();
-        resultLauncher.launch(googleSignInIntent);
-
-        Toast.makeText(getApplicationContext(), "로그인", Toast.LENGTH_SHORT).show();
-        layoutLogin.setVisibility(View.GONE);
-        drawerLayout.setVisibility(View.VISIBLE);
-        googleLoginFlag = true;
-    }
-
-    private void handleSignResult(Task<GoogleSignInAccount> completedTask) {
-        GoogleSignInAccount account = completedTask.getResult();
-        String email = account.getEmail();
-        String displayName = account.getDisplayName();
-
-        Log.e("loginWithGoogle", "email: " + email + "\ndisplayName: " + displayName);
-    }
-
-    private void kakaoLogin() {
-        if(UserApiClient.getInstance().isKakaoTalkLoginAvailable(MainActivity.this)) {
-            UserApiClient.getInstance().loginWithKakaoTalk(MainActivity.this,(oAuthToken, error) -> {
-                if (error != null) {
-                    Toast.makeText(getApplicationContext(), "로그인 실패, 다시 시도해주세요", Toast.LENGTH_SHORT).show();
-                    Log.e("loginWithKakaoTalk", error.toString());
-                } else if (oAuthToken != null) {
-                    Toast.makeText(getApplicationContext(), "카카오톡 계정으로 로그인 하였습니다.", Toast.LENGTH_SHORT).show();
-                    Log.e("loginWithKakaoTalk", "로그인 성공(토큰) : " + oAuthToken.getAccessToken());
-                    getUserKakaoInfo();
-                }
-                return null;
-            });
-        } else {
-            UserApiClient.getInstance().loginWithKakaoAccount(MainActivity.this,(oAuthToken, error) -> {
-                if (error != null) {
-                    Toast.makeText(getApplicationContext(), "로그인 실패, 다시 시도해주세요", Toast.LENGTH_SHORT).show();
-                    Log.e("loginWithKakaoAccount", error.toString());
-                } else if (oAuthToken != null) {
-                    Toast.makeText(getApplicationContext(), "카카오톡 계정으로 로그인 하였습니다.", Toast.LENGTH_SHORT).show();
-                    Log.e("loginWithKakaoAccount", "로그인 성공(토큰) : " + oAuthToken.getAccessToken());
-                    getUserKakaoInfo();
-                }
-                return null;
-            });
-        }
-    }
-
-    public void getUserKakaoInfo(){
-        String TAG = "getUserInfo()";
-        UserApiClient.getInstance().me((user, meError) -> {
-            if (meError != null) {
-                Toast.makeText(getApplicationContext(), "로그인 실패, 다시 시도해주세요", Toast.LENGTH_SHORT).show();
-                Log.e(TAG, "사용자 정보 요청 실패", meError);
-            } else {
-                layoutLogin.setVisibility(View.GONE);
-                drawerLayout.setVisibility(View.VISIBLE);
-                kakaoLoginFlag = true;
-            }
-            return null;
-        });
     }
 
     private void logout() {
@@ -279,8 +199,9 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
             kakaoLogout();
         }
 
-        drawerLayout.setVisibility(View.GONE);
-        layoutLogin.setVisibility(View.VISIBLE);
+        Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+        startActivity(intent);
+        finish();
     }
 
     private void googleLogout() {
