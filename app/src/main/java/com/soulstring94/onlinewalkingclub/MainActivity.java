@@ -5,8 +5,11 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import android.app.Activity;
@@ -19,6 +22,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -31,6 +35,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.tasks.Task;
+import com.google.android.material.navigation.NavigationView;
 import com.kakao.sdk.user.UserApiClient;
 
 import net.daum.mf.map.api.MapPoint;
@@ -43,7 +48,7 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
 
     TextView btnGoogleLogin, txtStep;
     ImageView btnKakaoLogin;
-    Button btnLogout, btnStart, btnStop;
+    Button btnStart, btnStop;
 
     private ActivityResultLauncher<Intent> resultLauncher;
 
@@ -57,6 +62,11 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
     private ViewGroup mapViewContainer;
 
     MapPolyline mapPolyline;
+
+    //=================================================
+    Toolbar toolbar;
+    DrawerLayout drawerLayout;
+    NavigationView navigationView;
 
     private BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -89,18 +99,40 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mapPolyline = new MapPolyline();
-        mapPolyline.setLineColor(Color.argb(255, 0, 153, 255));
+        initMain();
 
         accessPermission();
+
+        navigationView.setNavigationItemSelectedListener(item -> {
+            int id = item.getItemId();
+            switch (id) {
+                case R.id.item_info:
+                    Toast.makeText(getApplicationContext(), "내 정보", Toast.LENGTH_SHORT).show();
+                    break;
+                case R.id.item_notice:
+                    Toast.makeText(getApplicationContext(), "공지사항", Toast.LENGTH_SHORT).show();
+                    break;
+            }
+
+            return true;
+        });
+
+        setSupportActionBar(toolbar);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_baseline_dehaze_24);
+        toolbar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+        ActionBar actionBar = getSupportActionBar();
+        actionBar.setDisplayShowTitleEnabled(false);
+
+        mapPolyline = new MapPolyline();
+        mapPolyline.setLineColor(Color.argb(255, 0, 153, 255));
 
         mapView = new MapView(this);
         mapViewContainer = (ViewGroup) findViewById(R.id.mapView);
         mapViewContainer.addView(mapView);
         mapView.setMapViewEventListener(this);
         mapView.setCurrentLocationTrackingMode(MapView.CurrentLocationTrackingMode.TrackingModeOnWithoutHeading);
-
-        initMain();
 
         resultLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
             if(result.getResultCode() == Activity.RESULT_OK) {
@@ -136,9 +168,6 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
                 case R.id.btnKakaoLogin:
                     kakaoLogin();
                     break;
-                case R.id.btnLogout:
-                    logout();
-                    break;
                 case R.id.btnStart:
                     startService(serviceIntent);
                     startService(serviceIntent2);
@@ -154,23 +183,29 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
 
         btnGoogleLogin.setOnClickListener(clickListener);
         btnKakaoLogin.setOnClickListener(clickListener);
-        btnLogout.setOnClickListener(clickListener);
 
         btnStart.setOnClickListener(clickListener);
         btnStop.setOnClickListener(clickListener);
     }
 
     private void initMain() {
+        toolbar = (Toolbar)findViewById(R.id.toolbar);
+
         layoutLogin = findViewById(R.id.layoutLogin);
         layoutMain = findViewById(R.id.layoutMain);
 
         btnGoogleLogin = findViewById(R.id.btnGoogleLogin);
         btnKakaoLogin = findViewById(R.id.btnKakaoLogin);
-        btnLogout = findViewById(R.id.btnLogout);
         btnStart = findViewById(R.id.btnStart);
         btnStop = findViewById(R.id.btnStop);
 
         txtStep = findViewById(R.id.txtStep);
+
+        drawerLayout = (DrawerLayout) findViewById(R.id.drawerLayout);
+        navigationView = (NavigationView) findViewById(R.id.navigationView);
+
+        layoutLogin.setVisibility(View.VISIBLE);
+        drawerLayout.setVisibility(View.GONE);
     }
 
     private void googleLogin() {
@@ -179,7 +214,7 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
 
         Toast.makeText(getApplicationContext(), "로그인", Toast.LENGTH_SHORT).show();
         layoutLogin.setVisibility(View.GONE);
-        layoutMain.setVisibility(View.VISIBLE);
+        drawerLayout.setVisibility(View.VISIBLE);
         googleLoginFlag = true;
     }
 
@@ -227,7 +262,7 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
                 Log.e(TAG, "사용자 정보 요청 실패", meError);
             } else {
                 layoutLogin.setVisibility(View.GONE);
-                layoutMain.setVisibility(View.VISIBLE);
+                drawerLayout.setVisibility(View.VISIBLE);
                 kakaoLoginFlag = true;
             }
             return null;
@@ -244,7 +279,7 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
             kakaoLogout();
         }
 
-        layoutMain.setVisibility(View.GONE);
+        drawerLayout.setVisibility(View.GONE);
         layoutLogin.setVisibility(View.VISIBLE);
     }
 
@@ -302,6 +337,27 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
             if(!checkResult) {
                 finish();
             }
+        }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        switch (item.getItemId()) {
+            case android.R.id.home: {
+                drawerLayout.openDrawer(GravityCompat.END);
+                return true;
+            }
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if(drawerLayout.isDrawerOpen(GravityCompat.END)) {
+            drawerLayout.closeDrawer(GravityCompat.END);
+        } else {
+            super.onBackPressed();
         }
     }
 

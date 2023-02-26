@@ -10,7 +10,6 @@
 
     <application
         android:name=".GlobalApplication"
-        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -19,12 +18,24 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.OnlineWalkingClub"
+        android:usesCleartextTraffic="true"
         tools:targetApi="31">
-        <meta-data android:name="com.kakao.sdk.AppKey" android:value="23ecb1735e5072ae849e65d7431c38b5"/>
+        <activity
+            android:name=".MyInfoActivity"
+            android:exported="false">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="" />
+        </activity>
+
+        <meta-data
+            android:name="com.kakao.sdk.AppKey"
+            android:value="23ecb1735e5072ae849e65d7431c38b5" />
+
         <service
             android:name=".StepCounterService"
             android:enabled="true"
-            android:exported="true"></service>
+            android:exported="true" />
 
         <activity
             android:name=".MainActivity"
