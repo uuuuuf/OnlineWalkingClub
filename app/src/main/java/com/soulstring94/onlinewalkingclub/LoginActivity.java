@@ -6,9 +6,11 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -19,18 +21,23 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.tasks.Task;
 import com.kakao.sdk.user.UserApiClient;
+import com.kakao.sdk.user.model.User;
+
+import kotlin.Unit;
+import kotlin.jvm.functions.Function2;
 
 public class LoginActivity extends AppCompatActivity {
 
     TextView btnGoogleLogin;
     ImageView btnKakaoLogin;
+    CheckBox cbLogin;
 
     private ActivityResultLauncher<Intent> resultLauncher;
 
     GoogleSignInClient googleSignInClient;
 
-    boolean googleLoginFlag = false;
-    boolean kakaoLoginFlag = false;
+    String googleLoginFlag = "false";
+    String kakaoLoginFlag = "false";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,6 +45,21 @@ public class LoginActivity extends AppCompatActivity {
         setContentView(R.layout.activity_login);
 
         initLogin();
+
+        SharedPreferences sharedPreferences = getSharedPreferences("loginInfo", MODE_PRIVATE);
+        if(sharedPreferences.getBoolean("loginMemory", false)) {
+            if(!sharedPreferences.getString("googleLoginEmail", "").equals("")) {
+                Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                intent.putExtra("googleLoginFlag", "true");
+                startActivity(intent);
+                finish();
+            } else if(!sharedPreferences.getString("kakaoLoginEmail", "").equals("")) {
+                Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                intent.putExtra("kakaoLoginFlag", "true");
+                startActivity(intent);
+                finish();
+            }
+        }
 
         resultLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
             if(result.getResultCode() == Activity.RESULT_OK) {
@@ -61,11 +83,28 @@ public class LoginActivity extends AppCompatActivity {
 
         btnGoogleLogin.setOnClickListener(clickListener);
         btnKakaoLogin.setOnClickListener(clickListener);
+
+        cbLogin.setOnClickListener(v -> {
+            if(cbLogin.isChecked()) {
+                cbLogin.setChecked(true);
+                SharedPreferences checkboxShared = getSharedPreferences("loginInfo", MODE_PRIVATE);
+                SharedPreferences.Editor editor = checkboxShared.edit();
+                editor.putBoolean("loginMemory", true);
+                editor.apply();
+            } else {
+                cbLogin.setChecked(false);
+                SharedPreferences checkboxShared = getSharedPreferences("loginInfo", MODE_PRIVATE);
+                SharedPreferences.Editor editor = checkboxShared.edit();
+                editor.putBoolean("loginMemory", false);
+                editor.apply();
+            }
+        });
     }
 
     private void initLogin() {
         btnGoogleLogin = findViewById(R.id.btnGoogleLogin);
         btnKakaoLogin = findViewById(R.id.btnKakaoLogin);
+        cbLogin = findViewById(R.id.cbLogin);
     }
 
     private void googleLogin() {
@@ -86,25 +125,43 @@ public class LoginActivity extends AppCompatActivity {
         String email = account.getEmail();
         String displayName = account.getDisplayName();
 
-        googleLoginFlag = true;
+        googleLoginFlag = "true";
 
         Intent intent = new Intent(LoginActivity.this, MainActivity.class);
         intent.putExtra("googleLoginFlag", googleLoginFlag);
         startActivity(intent);
         finish();
 
-        Log.e("loginWithGoogle", "email: " + email + "\ndisplayName: " + displayName);
+        SharedPreferences sharedPreferences = getSharedPreferences("loginInfo", MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString("googleLoginEmail", email);
+        editor.putString("googleLoginNickName", displayName);
+        editor.apply();
     }
 
     private void kakaoLogin() {
         if(UserApiClient.getInstance().isKakaoTalkLoginAvailable(LoginActivity.this)) {
             UserApiClient.getInstance().loginWithKakaoTalk(LoginActivity.this,(oAuthToken, error) -> {
                 if (error != null) {
-                    Toast.makeText(getApplicationContext(), "로그인 실패, 다시 시도해주세요", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), R.string.login_failed, Toast.LENGTH_SHORT).show();
                     Log.e("loginWithKakaoTalk", error.toString());
                 } else if (oAuthToken != null) {
-                    //Toast.makeText(getApplicationContext(), "카카오톡 계정으로 로그인 하였습니다.", Toast.LENGTH_SHORT).show();
-                    Log.e("loginWithKakaoTalk", "로그인 성공(토큰) : " + oAuthToken.getAccessToken());
+                    UserApiClient.getInstance().me((user, throwable) -> {
+                        if(throwable != null) {
+                            return null;
+                        }
+
+                        String userNickName = user.getKakaoAccount().getProfile().getNickname();
+                        String userEmail = String.valueOf(user.getKakaoAccount().getEmail());
+
+                        SharedPreferences sharedPreferences = getSharedPreferences("loginInfo", MODE_PRIVATE);
+                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                        editor.putString("kakaoLoginEmail", userEmail);
+                        editor.putString("kakaoLoginNickName", userNickName);
+                        editor.apply();
+
+                        return null;
+                    });
                     getUserKakaoInfo();
                 }
                 return null;
@@ -112,11 +169,9 @@ public class LoginActivity extends AppCompatActivity {
         } else {
             UserApiClient.getInstance().loginWithKakaoAccount(LoginActivity.this,(oAuthToken, error) -> {
                 if (error != null) {
-                    Toast.makeText(getApplicationContext(), "로그인 실패, 다시 시도해주세요", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), R.string.login_failed, Toast.LENGTH_SHORT).show();
                     Log.e("loginWithKakaoAccount", error.toString());
                 } else if (oAuthToken != null) {
-                    //Toast.makeText(getApplicationContext(), "카카오톡 계정으로 로그인 하였습니다.", Toast.LENGTH_SHORT).show();
-                    Log.e("loginWithKakaoAccount", "로그인 성공(토큰) : " + oAuthToken.getAccessToken());
                     getUserKakaoInfo();
                 }
                 return null;
@@ -128,10 +183,10 @@ public class LoginActivity extends AppCompatActivity {
         String TAG = "getUserInfo()";
         UserApiClient.getInstance().me((user, meError) -> {
             if (meError != null) {
-                Toast.makeText(getApplicationContext(), "로그인 실패, 다시 시도해주세요", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), R.string.login_failed, Toast.LENGTH_SHORT).show();
                 Log.e(TAG, "사용자 정보 요청 실패", meError);
             } else {
-                kakaoLoginFlag = true;
+                kakaoLoginFlag = "true";
 
                 Intent intent = new Intent(LoginActivity.this, MainActivity.class);
                 intent.putExtra("kakaoLoginFlag", kakaoLoginFlag);

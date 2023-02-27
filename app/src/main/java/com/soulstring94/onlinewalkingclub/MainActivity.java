@@ -14,10 +14,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
@@ -54,8 +56,8 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
     DrawerLayout drawerLayout;
     NavigationView navigationView;
 
-    boolean googleLoginFlag;
-    boolean kakaoLoginFlag;
+    String googleLoginFlag = null;
+    String kakaoLoginFlag = null;
 
     GoogleSignInClient googleSignInClient;
 
@@ -167,13 +169,29 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
         googleSignInClient = GoogleSignIn.getClient(MainActivity.this, gso);
 
         Intent intent = getIntent();
-        googleLoginFlag = intent.getBooleanExtra("googleLoginFlag", false);
-        kakaoLoginFlag = intent.getBooleanExtra("kakaoLoginFlag", false);
+        googleLoginFlag = intent.getStringExtra("googleLoginFlag");
+        kakaoLoginFlag = intent.getStringExtra("kakaoLoginFlag");
 
-        if(googleLoginFlag) {
-            Toast.makeText(MainActivity.this, "구글 로그인", Toast.LENGTH_SHORT).show();
-        } else if(kakaoLoginFlag) {
-            Toast.makeText(MainActivity.this, "카카오 로그인", Toast.LENGTH_SHORT).show();
+        if(googleLoginFlag == null) {
+            googleLoginFlag = "false";
+        } else if(kakaoLoginFlag == null) {
+            kakaoLoginFlag = "false";
+        }
+
+        if(googleLoginFlag.equals("false")) {
+            if(kakaoLoginFlag.equals("true")) {
+                Toast.makeText(MainActivity.this, "카카오 로그인", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(MainActivity.this, R.string.login_error, Toast.LENGTH_SHORT).show();
+                logout();
+            }
+        } else if(kakaoLoginFlag.equals("false")) {
+            if(googleLoginFlag.equals("true")) {
+                Toast.makeText(MainActivity.this, "구글 로그인", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(MainActivity.this, R.string.login_error, Toast.LENGTH_SHORT).show();
+                logout();
+            }
         }
 
         toolbar = (Toolbar)findViewById(R.id.toolbar);
@@ -190,14 +208,15 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
     }
 
     private void logout() {
-        if(googleLoginFlag && kakaoLoginFlag) {
+        if(googleLoginFlag.equals("true") && kakaoLoginFlag.equals("true")) {
             googleLogout();
             kakaoLogout();
-        } else if(googleLoginFlag) {
+        } else if(googleLoginFlag.equals("true")) {
             googleLogout();
-        } else if(kakaoLoginFlag) {
+        } else if(kakaoLoginFlag.equals("true")) {
             kakaoLogout();
         }
+        mapViewContainer.removeView(mapView);
 
         Intent intent = new Intent(MainActivity.this, LoginActivity.class);
         startActivity(intent);
@@ -209,9 +228,17 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
         googleSignInClient.revokeAccess();
 
         GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
+        Log.e("account", String.valueOf(account));
         if(account == null) {
             Toast.makeText(getApplicationContext(), "로그아웃", Toast.LENGTH_SHORT).show();
-            googleLoginFlag = false;
+            googleLoginFlag = "";
+
+            SharedPreferences sharedPreferences = getSharedPreferences("loginInfo", MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putString("googleLoginEmail", null);
+            editor.putString("googleLoginNickName", null);
+            editor.putBoolean("loginMemory", false);
+            editor.apply();
         } else {
             Toast.makeText(getApplicationContext(), "로그인", Toast.LENGTH_SHORT).show();
         }
@@ -220,7 +247,14 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
     private void kakaoLogout() {
         Toast.makeText(getApplicationContext(), "로그아웃", Toast.LENGTH_SHORT).show();
         UserApiClient.getInstance().unlink(throwable -> null);
-        kakaoLoginFlag = false;
+        kakaoLoginFlag = "";
+
+        SharedPreferences sharedPreferences = getSharedPreferences("loginInfo", MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString("kakaoLoginEmail", null);
+        editor.putString("kakaoLoginNickName", null);
+        editor.putBoolean("loginMemory", false);
+        editor.apply();
     }
 
     private void accessPermission() {
@@ -256,6 +290,7 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
             }
 
             if(!checkResult) {
+                mapViewContainer.removeAllViews();
                 finish();
             }
         }
