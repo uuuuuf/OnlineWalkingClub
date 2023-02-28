@@ -9,4 +9,5 @@
     <color name="white">#FFFFFFFF</color>
     <color name="textColor">#FF000000</color>
     <color name="googleSignInTextColor">#FF000000</color>
+    <color name="backgroundGray">#FFbfbfbf</color>
 </resources>

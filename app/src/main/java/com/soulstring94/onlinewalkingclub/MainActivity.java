@@ -1,6 +1,7 @@
 package com.soulstring94.onlinewalkingclub;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -24,6 +25,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -42,8 +44,9 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
 
     ConstraintLayout layoutMain;
 
-    TextView txtStep;
+    TextView txtStep, txtNaviNickName;
     Button btnStart, btnStop;
+    ImageView imgNaviProfile;
 
     // KakaoMap=================================================
     private MapView mapView;
@@ -55,11 +58,14 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
     Toolbar toolbar;
     DrawerLayout drawerLayout;
     NavigationView navigationView;
+    View headerView;
 
     String googleLoginFlag = null;
     String kakaoLoginFlag = null;
 
     GoogleSignInClient googleSignInClient;
+
+    private static final int REQUEST_CODE = 500;
 
     private BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -109,7 +115,7 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
             switch (id) {
                 case R.id.item_info:
                     Intent intent = new Intent(MainActivity.this, MyInfoActivity.class);
-                    startActivity(intent);
+                    startActivityForResult(intent, REQUEST_CODE);
                     break;
                 case R.id.item_notice:
                     Toast.makeText(getApplicationContext(), "공지사항", Toast.LENGTH_SHORT).show();
@@ -161,6 +167,23 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
     }
 
     private void initMain() {
+        toolbar = (Toolbar)findViewById(R.id.toolbar);
+
+        layoutMain = findViewById(R.id.layoutMain);
+
+        btnStart = findViewById(R.id.btnStart);
+        btnStop = findViewById(R.id.btnStop);
+
+        txtStep = findViewById(R.id.txtStep);
+
+        drawerLayout = (DrawerLayout) findViewById(R.id.drawerLayout);
+        navigationView = (NavigationView) findViewById(R.id.navigationView);
+
+        headerView = navigationView.getHeaderView(0);
+
+        txtNaviNickName = headerView.findViewById(R.id.txtNaviNickName);
+        imgNaviProfile = headerView.findViewById(R.id.imgNaviProfile);
+
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestEmail()
                 .requestProfile()
@@ -181,6 +204,11 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
         if(googleLoginFlag.equals("false")) {
             if(kakaoLoginFlag.equals("true")) {
                 Toast.makeText(MainActivity.this, "카카오 로그인", Toast.LENGTH_SHORT).show();
+                SharedPreferences sharedPreferences = getSharedPreferences("loginInfo", MODE_PRIVATE);
+                if(!sharedPreferences.getString("kakaoLoginNickName", "").equals("")) {
+                    String nickName = sharedPreferences.getString("kakaoLoginNickName", "");
+                    txtNaviNickName.setText(nickName);
+                }
             } else {
                 Toast.makeText(MainActivity.this, R.string.login_error, Toast.LENGTH_SHORT).show();
                 logout();
@@ -188,23 +216,16 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
         } else if(kakaoLoginFlag.equals("false")) {
             if(googleLoginFlag.equals("true")) {
                 Toast.makeText(MainActivity.this, "구글 로그인", Toast.LENGTH_SHORT).show();
+                SharedPreferences sharedPreferences = getSharedPreferences("loginInfo", MODE_PRIVATE);
+                if(!sharedPreferences.getString("googleLoginNickName", "").equals("")) {
+                    String nickName = sharedPreferences.getString("googleLoginNickName", "");
+                    txtNaviNickName.setText(nickName);
+                }
             } else {
                 Toast.makeText(MainActivity.this, R.string.login_error, Toast.LENGTH_SHORT).show();
                 logout();
             }
         }
-
-        toolbar = (Toolbar)findViewById(R.id.toolbar);
-
-        layoutMain = findViewById(R.id.layoutMain);
-
-        btnStart = findViewById(R.id.btnStart);
-        btnStop = findViewById(R.id.btnStop);
-
-        txtStep = findViewById(R.id.txtStep);
-
-        drawerLayout = (DrawerLayout) findViewById(R.id.drawerLayout);
-        navigationView = (NavigationView) findViewById(R.id.navigationView);
     }
 
     private void logout() {
@@ -293,6 +314,15 @@ public class MainActivity extends AppCompatActivity implements MapView.CurrentLo
                 mapViewContainer.removeAllViews();
                 finish();
             }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode == REQUEST_CODE && resultCode == RESULT_OK) {
+            String nickname = data.getStringExtra("nickname");
+            txtNaviNickName.setText(nickname);
         }
     }
 
