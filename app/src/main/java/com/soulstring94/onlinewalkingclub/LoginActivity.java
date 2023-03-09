@@ -21,10 +21,15 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.tasks.Task;
 import com.kakao.sdk.user.UserApiClient;
-import com.kakao.sdk.user.model.User;
+import com.soulstring94.onlinewalkingclub.retrofit2.ApiClient;
+import com.soulstring94.onlinewalkingclub.retrofit2.ApiInterface;
+import com.soulstring94.onlinewalkingclub.structure.OWCMember;
 
-import kotlin.Unit;
-import kotlin.jvm.functions.Function2;
+import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -137,6 +142,8 @@ public class LoginActivity extends AppCompatActivity {
         editor.putString("googleLoginEmail", email);
         editor.putString("googleLoginNickName", displayName);
         editor.apply();
+
+        checkMember(email, displayName, "google");
     }
 
     private void kakaoLogin() {
@@ -159,6 +166,8 @@ public class LoginActivity extends AppCompatActivity {
                         editor.putString("kakaoLoginEmail", userEmail);
                         editor.putString("kakaoLoginNickName", userNickName);
                         editor.apply();
+
+                        checkMember(userEmail, userNickName, "kakao");
 
                         return null;
                     });
@@ -194,6 +203,51 @@ public class LoginActivity extends AppCompatActivity {
                 finish();
             }
             return null;
+        });
+    }
+
+    private void checkMember(String memberEmail, String memberNickName, String loginPlatform) {
+        ApiInterface apiInterface = ApiClient.getApiClient().create(ApiInterface.class);
+        Call<List<OWCMember>> call = apiInterface.OWCMemberCheck(memberEmail, memberNickName, loginPlatform);
+        call.enqueue(new Callback<List<OWCMember>>() {
+            @Override
+            public void onResponse(Call<List<OWCMember>> call, Response<List<OWCMember>> response) {
+                if(response.isSuccessful() && response.body().size() > 0) {
+                    Toast.makeText(LoginActivity.this, R.string.exist_member, Toast.LENGTH_SHORT).show();
+                } else {
+                    addMember(memberEmail, memberNickName, loginPlatform);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<List<OWCMember>> call, Throwable t) {
+                Log.e("checkMember Error", t.getMessage());
+                Toast.makeText(LoginActivity.this, R.string.member_check_failed, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void addMember(String memberEmail, String memberNickName, String loginPlatform) {
+        ApiInterface apiInterface = ApiClient.getApiClient().create(ApiInterface.class);
+        Call<OWCMember> call = apiInterface.OWCMemberInsert(memberEmail, memberNickName, loginPlatform);
+        call.enqueue(new Callback<OWCMember>() {
+            @Override
+            public void onResponse(Call<OWCMember> call, Response<OWCMember> response) {
+                if(response.isSuccessful() && response.body() != null) {
+                    Boolean success = response.body().getSuccess();
+                    if(success) {
+                        Toast.makeText(LoginActivity.this, R.string.new_member, Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(LoginActivity.this, R.string.insert_member_failed, Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<OWCMember> call, Throwable t) {
+                Log.e("addMember Error", t.getMessage());
+                Toast.makeText(LoginActivity.this, R.string.insert_member_failed, Toast.LENGTH_SHORT).show();
+            }
         });
     }
 }

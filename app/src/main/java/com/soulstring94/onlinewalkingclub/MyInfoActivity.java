@@ -24,8 +24,6 @@ public class MyInfoActivity extends AppCompatActivity {
 
     String deliverNickName = "";
 
-    private static final int NICKNAME_CODE = 500;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

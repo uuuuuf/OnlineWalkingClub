@@ -3,4 +3,8 @@
     <string name="google_login">구글 로그인</string>
     <string name="login_error">로그인이 정상적이지 않습니다. 다시 시도해주세요.</string>
     <string name="login_failed">로그인 실패, 다시 시도해주세요</string>
+    <string name="member_check_failed">유저 정보 가져오기에 실패했습니다.</string>
+    <string name="new_member">환영합니다!</string>
+    <string name="exist_member">다시 만나 반가워요.</string>
+    <string name="insert_member_failed">회원 정보 추가에 실패했습니다.</string>
 </resources>
